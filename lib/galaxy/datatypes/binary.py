@@ -109,7 +109,7 @@ class Cel(Binary):
         Try to guess if the file is a CEL file.
 
         >>> from galaxy.datatypes.sniff import get_test_fname
-        >>> fname = get_test_fname('test.CEL')
+        >>> fname = get_test_fname('test.cel')
         >>> Cel().sniff(fname)
         True
 
@@ -124,6 +124,18 @@ class Cel(Binary):
             return False
         except Exception:
             return False
+
+
+class MashSketch(Binary):
+    """
+        Mash Sketch file.
+        Sketches are used by the MinHash algorithm to allow fast distance estimations
+        with low storage and memory requirements. To make a sketch, each k-mer in a sequence
+        is hashed, which creates a pseudo-random identifier. By sorting these identifiers (hashes),
+        a small subset from the top of the sorted list can represent the entire sequence (these are min-hashes).
+        The more similar another sequence is, the more min-hashes it is likely to share.
+    """
+    file_ext = "msh"
 
 
 class CompressedArchive(Binary):
@@ -648,7 +660,8 @@ class Bcf(BaseBcf):
                                        '__dataset_%d_%s' % (dataset.id, os.path.basename(index_file.file_name)))
         os.symlink(dataset.file_name, dataset_symlink)
         try:
-            pysam.bcftools.index(dataset_symlink)
+            cmd = ['python', '-c', "import pysam.bcftools; pysam.bcftools.index('%s')" % (dataset_symlink)]
+            subprocess.check_call(cmd)
             shutil.move(dataset_symlink + '.csi', index_file.file_name)
         except Exception as e:
             raise Exception('Error setting BCF metadata: %s' % (str(e)))
@@ -658,7 +671,7 @@ class Bcf(BaseBcf):
         dataset.metadata.bcf_index = index_file
 
 
-class BcfUncompressed(Bcf):
+class BcfUncompressed(BaseBcf):
     """
     Class describing an uncompressed BCF file
 
@@ -922,7 +935,7 @@ class Biom2(H5):
     def sniff(self, filename):
         """
         >>> from galaxy.datatypes.sniff import get_test_fname
-        >>> fname = get_test_fname('biom2_sparse_otu_table_hdf5.biom')
+        >>> fname = get_test_fname('biom2_sparse_otu_table_hdf5.biom2')
         >>> Biom2().sniff(fname)
         True
         >>> fname = get_test_fname('test.mz5')
@@ -1004,7 +1017,7 @@ class Cool(H5):
         >>> fname = get_test_fname('wiggle.wig')
         >>> Cool().sniff(fname)
         False
-        >>> fname = get_test_fname('biom2_sparse_otu_table_hdf5.biom')
+        >>> fname = get_test_fname('biom2_sparse_otu_table_hdf5.biom2')
         >>> Cool().sniff(fname)
         False
         """
@@ -1463,7 +1476,7 @@ class IdpDB(SQlite):
     Class describing an IDPicker 3 idpDB (sqlite) database
 
     >>> from galaxy.datatypes.sniff import get_test_fname
-    >>> fname = get_test_fname('test.idpDB')
+    >>> fname = get_test_fname('test.idpdb')
     >>> IdpDB().sniff(fname)
     True
     >>> fname = get_test_fname('interval.interval')
@@ -1509,8 +1522,8 @@ class IdpDB(SQlite):
 
 class GAFASQLite(SQlite):
     """Class describing a GAFA SQLite database"""
-    MetadataElement(name='gafa_schema_version', default='0.1.0', param=MetadataParameter, desc='GAFA schema version',
-                    readonly=True, visible=True, no_value='0.1.0')
+    MetadataElement(name='gafa_schema_version', default='0.3.0', param=MetadataParameter, desc='GAFA schema version',
+                    readonly=True, visible=True, no_value='0.3.0')
     file_ext = 'gafa.sqlite'
 
     def set_meta(self, dataset, overwrite=True, **kwd):
@@ -2150,6 +2163,29 @@ class DAA(Binary):
     def __init__(self, **kwd):
         Binary.__init__(self, **kwd)
         self._magic = binascii.unhexlify("6be33e6d47530e3c")
+
+    def sniff(self, filename):
+        # The first 8 bytes of any daa file are 0x3c0e53476d3ee36b
+        with open(filename, 'rb') as f:
+            return f.read(8) == self._magic
+
+
+class RMA6(Binary):
+    """
+    Class describing an RMA6 (MEGAN6 read-match archive) file
+    >>> from galaxy.datatypes.sniff import get_test_fname
+    >>> fname = get_test_fname('diamond.rma6')
+    >>> RMA6().sniff(fname)
+    True
+    >>> fname = get_test_fname('interval.interval')
+    >>> RMA6().sniff(fname)
+    False
+    """
+    file_ext = "rma6"
+
+    def __init__(self, **kwd):
+        Binary.__init__(self, **kwd)
+        self._magic = binascii.unhexlify("000003f600000006")
 
     def sniff(self, filename):
         # The first 8 bytes of any daa file are 0x3c0e53476d3ee36b
